@@ -1,14 +1,23 @@
 import React from "react";
-import { ApolloClient, InMemoryCache, ApolloProvider, useQuery, gql } from '@apollo/client';
+import { ApolloClient, InMemoryCache, ApolloProvider, useSubscription, gql, useMutation } from '@apollo/client';
+import { WebSocketLink } from '@apollo/client/link/ws';
 import { Container, Row, Col, FormInput, Button } from "shards-react";
 
+const link = new WebSocketLink({
+    uri: `ws://localhost:4000/`,
+    options: {
+        reconnect: true
+    }
+});
+
 const client = new ApolloClient({
+    link,
   uri: 'http://localhost:4000/',
   cache: new InMemoryCache()
 });
 
 const GET_MESSAGES = gql`
-query {
+subscription {
   messages {
     id
     content
@@ -16,8 +25,14 @@ query {
   }
 }`;
 
+const POST_MESSAGE = gql`
+mutation($user:String!, $content:String!) {
+    postMessage(user: $user, content: $content)
+}`;
+
 const Messages = ({ user }) => {
-    const { data } = useQuery(GET_MESSAGES);
+    const { data } = useSubscription(GET_MESSAGES);
+    
     if (!data) {
         return null;
     }
@@ -68,6 +83,21 @@ const Chat = () => {
         user: "Jack",
         content: "",
     })
+
+    const [postMessage] = useMutation(POST_MESSAGE);
+
+    const onSend = () => {
+        if (state.content.length > 0) {
+            postMessage({
+                variables: state,
+            })
+        }
+        stateSet({
+            ...state,
+            content: '',
+        })
+    }
+
     return (
         <Container>
             <Messages user={state.user} />
@@ -90,7 +120,17 @@ const Chat = () => {
                             ...state,
                             content: evt.target.value,
                         })}
+                        onKeyUp={(evt) => {
+                            if (evt.KeyCode === 13) {
+                                onSend();
+                            }
+                        }}
                     />
+                </Col>
+                <Col>
+                    <Button onClick={() => onSend()} style={{ width: '100%' }}>
+                        Send
+                    </Button>
                 </Col>
             </Row>
         </Container>
